@@ -13,6 +13,7 @@ import {
   CameraCapturedPicture,
 } from "expo-camera";
 import path from "path";
+import { Video } from "expo-av";
 import { router } from "expo-router";
 import * as FileSystem from "expo-file-system";
 import { MaterialIcons } from "@expo/vector-icons";
@@ -25,6 +26,8 @@ const CameraScreen = () => {
   const [facing, setFacing] = useState<CameraType>("back");
   const camera = useRef<CameraView>(null);
   const [picture, setPicture] = useState<CameraCapturedPicture>();
+  const [isRecording, setIsRecording] = useState(false);
+  const [video, setVideo] = useState<string>();
 
   useEffect(() => {
     if (permission && !permission.granted && permission.canAskAgain) {
@@ -36,9 +39,24 @@ const CameraScreen = () => {
     setFacing((current) => (current === "back" ? "front" : "back"));
   };
 
+  const onPress = () => {
+    if (isRecording) {
+      camera.current?.stopRecording();
+    } else {
+      takePicture();
+    }
+  };
+
   const takePicture = async () => {
     const res = await camera.current?.takePictureAsync();
     setPicture(res);
+  };
+
+  const startRecording = async () => {
+    setIsRecording(true);
+    const res = await camera.current?.recordAsync({ maxDuration: 60 });
+    setVideo(res?.uri);
+    setIsRecording(false);
   };
 
   const saveFile = async (uri: string) => {
@@ -51,6 +69,7 @@ const CameraScreen = () => {
     });
 
     setPicture(undefined);
+    setVideo(undefined);
     router.back();
   };
 
@@ -58,7 +77,7 @@ const CameraScreen = () => {
     return <ActivityIndicator />;
   }
 
-  if (picture) {
+  if (picture || video) {
     return (
       <View style={{ flex: 1 }}>
         {picture && (
@@ -67,14 +86,28 @@ const CameraScreen = () => {
             style={{ width: "100%", flex: 1 }}
           />
         )}
+
+        {video && (
+          <Video
+            source={{ uri: video }}
+            style={{ width: "100%", flex: 1 }}
+            shouldPlay
+            isLooping
+          />
+        )}
+
         <View style={{ padding: 10 }}>
           <SafeAreaView edges={["bottom"]}>
-            <Button title="Save" onPress={() => saveFile(picture?.uri)} />
+            <Button
+              title="Save"
+              onPress={() => saveFile(picture?.uri || video || "")}
+            />
           </SafeAreaView>
         </View>
         <MaterialIcons
           onPress={() => {
             setPicture(undefined);
+            setVideo(undefined);
           }}
           name="close"
           size={35}
@@ -96,8 +129,12 @@ const CameraScreen = () => {
         <View style={styles.footer}>
           <View />
           <Pressable
-            style={[styles.recordButton, { backgroundColor: "white" }]}
-            onPress={takePicture}
+            style={[
+              styles.recordButton,
+              { backgroundColor: isRecording ? "crimson" : "white" },
+            ]}
+            onPress={onPress}
+            onLongPress={startRecording}
           />
 
           <MaterialIcons
